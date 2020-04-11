@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 APP_BASE_URL = 'https://ikman.lk'
 
-req_url = 'https://ikman.lk/en/ads?by_paying_member=0&sort=relevance&buy_now=0&query=bmw&page=1'
+req_url = 'https://ikman.lk/en/ads?by_paying_member=0&sort=relevance&buy_now=0&query=samsung%20s4&page=1'
 
 
 def get_date_diff(unit, value):
@@ -22,38 +22,47 @@ def get_date_diff(unit, value):
     return datetime.now() - timedelta(days=time_stamp_map[unit])
 
 
-def extract_add_detail_data(url):
+def get_script_for_detail_page(url):
     ad_detail_html = requests.get(url).text
-    # print('ad_detail_html', ad_detail_html)
-    ad_detail_scrapper = BeautifulSoup(ad_detail_html, 'html.parser')
-    # item_body = ad_detail_scrapper.find(class_='item-body')
-    description = ad_detail_scrapper.find(class_='item-description')
-    price = ad_detail_scrapper.find(class_='amount')
-    contact = ad_detail_scrapper.find('span', class_='h3')
+    print('fetching ad details...')
+    ad_detail_scrapper = BeautifulSoup(ad_detail_html, 'html5lib')
+    return ad_detail_scrapper.findAll('script')
 
-    if description is not None:
-        description = description.getText()
-    # else:
-    #     Html_file = open("data.html", "w")
-    #     Html_file.write(ad_detail_html)
-    #     Html_file.close()
 
-    if price is not None:
-        price = price.getText()
+def get_image_url_from_meta_data(meta):
+    return list(map(lambda d: d['src'], meta))
 
-    if contact is not None:
-        contact = contact.getText()
+
+def extract_add_detail_data(url):
+
+    scripts = get_script_for_detail_page(url)
+
+    while len(scripts) != 11:
+        print('reloading for the page propper render...')
+        scripts = get_script_for_detail_page(url)
+
+    print(f'scripts loaded...')
+
+    data_script = scripts[1].getText()[28:-1]
+
+    data = json.loads(data_script)['adDetail']['data']['ad']
+
+    contact = data['contactCard']['phoneNumbers']
+
+    if len(contact) > 0:
+        contact = contact[0]['number']
+    else:
+        contact = None
 
     return {
-        "full_description": description,
-        "image_urls": [],
-        "price": price,
+        "full_description": data['description'],
+        "image_urls": get_image_url_from_meta_data(data['images']['meta']),
+        "price": data['money']['amount'],
         "contact": contact
     }
 
 
 def extract_data_from_ad_list(item):
-    # anchor_tag = item.find('a')
     ad_detail_url = f'{APP_BASE_URL}/en/ad/{item["slug"]}'
     detail_data = extract_add_detail_data(ad_detail_url)
 
@@ -77,10 +86,15 @@ def get_ads_data(url):
     script = ad_list_scrapper.findAll('script')[1].getText()
     ad_list_data = json.loads(script[28:-1])['serp']['ads']['data']
     ad_list = ad_list_data['ads'] + ad_list_data['topAds']
+
+    print(f'<======= {len(ad_list)} ads found =======>')
     list_detail_dict = list(map(extract_data_from_ad_list, ad_list))
-    # with open('data.json', 'w') as output_file:
-    #     json.dump(list_detail_dict, output_file)
+
+    print('\n\n<====== DATA ======>\n')
     print(list_detail_dict)
+    with open('output.json', 'w') as output:
+        json.dump(list_detail_dict, output)
+    print('\n\n<====== END ======>\n')
 
 
 get_ads_data(req_url)
