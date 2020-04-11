@@ -6,6 +6,10 @@ __pycache__/
 # C extensions
 *.so
 
+# editor config
+.idea
+.vscode
+
 # Distribution / packaging
 .Python
 build/
@@ -127,3 +131,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# auto generated files
+data.json
+output.json
